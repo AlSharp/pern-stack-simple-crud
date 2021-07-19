@@ -1,62 +1,25 @@
-const express = require('express');
-const router = express.Router();
+const app = require('express')();
+const server = require('http').createServer(app);
+const bodyParser = require('body-parser');
+const cors = require('cors');
 
-module.exports = pool => {
-  router.get('/users', async (req, res) => {
-    try {
-      const results = await pool.query('SELECT * FROM users ORDER BY id ASC');
-      res.status(200).json({ users: results.rows, error: null });
-    }
-    catch(error) {
-      res.status(500).json({ users: null, error: error.message });
-    }
-  });
+const api = require('./users');
+const pool = require('./pool');
 
-  router.get('/users/:id', async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
+app.use(cors());
 
-      const results = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
-      res.status(200).json({ user: results.rows[0], error: null });
-    }
-    catch(error) {
-      res.status(500).json({ user: null, error: error.message });
-    }
-  });
+app.use(bodyParser.urlencoded({extended: true}));
+app.use(bodyParser.json());
 
-  router.post('/users', async (req, res) => {
-    try {
-      const { name, email } = req.body;
-      const results = await pool.query('INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id', [name, email]);
-      res.status(201).json({ message: `User was created with ID ${results.rows[0].id}`, error: null });
-    }
-    catch(error) {
-      res.status(500).json({ message: null, error: error.message });
-    }
-  });
+server.listen(5000, async () => {
+  try {
+    await pool.connect();
+    app.use('/api', api(pool));
+    console.log('Server listens to port 5000');
+  }
+  catch(error) {
+    console.log(error);
+  }
+});
 
-  router.put('/users/:id', async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const { name, email } = req.body;
-      await pool.query('UPDATE users SET name = $1, email = $2 WHERE id = $3', [name, email, id]);
-      res.status(200).json({ message: `User with ID ${id} was updated`, error: null });
-    }
-    catch(error) {
-      res.status(500).json({ message: null, error: error.message });
-    }
-  })
 
-  router.delete('/users/:id', async (req, res) => {
-    try {
-      const id = req.params.id;
-      await pool.query('DELETE FROM users WHERE id = $1', [id]);
-      res.status(200).json({ message: `User with ID ${id} was deleted`, error: null });
-    }
-    catch(error) {
-      res.status(500).json({ message: null, error: error.message });
-    }
-  })
-
-  return router;
-};
